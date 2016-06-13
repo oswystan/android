@@ -1,0 +1,33 @@
+BEGIN back_camera_13M_basic
+connect 1
+config preview=1027x768 picture=4160x3120
+preview
+delay 1
+autofocus
+zoom
+capture
+release
+END
+
+BEGIN back_camera_13M_mono_basic
+connect 1
+config preview=1027x768 picture=4160x3120
+preview
+delay 1
+autofocus
+zoom
+capture
+release
+END
+
+BEGIN front_camera_8M_basic
+connect 1
+config preview=1027x768 picture=3264x2448
+preview
+delay 1
+autofocus
+zoom
+capture
+release
+END
+
