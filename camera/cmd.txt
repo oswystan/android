@@ -31,3 +31,14 @@ capture
 release
 END
 
+BEGIN front_camera_8M_recording
+connect 1
+config preview=1027x768 picture=3264x2448 fr=30
+preview
+delay 1
+start_recording
+delay 10
+stop_recording
+release
+END
+
