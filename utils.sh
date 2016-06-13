@@ -23,4 +23,8 @@ function kmedia() {
     adb shell ps |grep mediaserver
 }
 
+function logcat() {
+    adb logcat -c && cls ; adb logcat 
+}
+
 ##################################################################
