@@ -11,18 +11,28 @@
  */
 
 #define LOG_TAG "CAMERA_TEST"
+#include <stdio.h>
 #include <cutils/memory.h>  
-#include <utils/Log.h>
 #include <Camera.h>
 #include <CameraParameters.h>
 
-#include <utils/Log.h>  
+#include <utils/Condition.h>
   
 #include <binder/ProcessState.h>
 #include <gui/Surface.h>  
 #include <gui/SurfaceComposerClient.h>  
 #include <gui/ISurfaceComposer.h>  
 #include <android/native_window.h>  
+#include "camera_st.h"
+
+#undef logd
+#undef logi
+#undef logw
+#undef loge
+#define logd(fmt, ...) printf("[D/" LOG_TAG "]" fmt "\n", ##__VA_ARGS__)
+#define logi(fmt, ...) printf("[I/" LOG_TAG "]" fmt "\n", ##__VA_ARGS__)
+#define logw(fmt, ...) printf("[W/" LOG_TAG "]" fmt "\n", ##__VA_ARGS__)
+#define loge(fmt, ...) printf("[E/" LOG_TAG "]" fmt "\n", ##__VA_ARGS__)
   
 using namespace android;
 
@@ -44,18 +54,29 @@ struct camera_context {
 };
 
 class CamListener : public CameraListener {
+
+public:
     void notify(int32_t msgType, int32_t ext1, int32_t ext2) {
-        ALOGI("get msg %d, %d, %d", msgType, ext1, ext2);
+        logi("get msg %d, %d, %d", msgType, ext1, ext2);
+        if(msgType == CAMERA_MSG_SHUTTER) {
+            logd("signal shutter");
+            Mutex::Autolock l(mutexShutter);
+            condShutter.signal();
+        } else if(msgType == CAMERA_MSG_ERROR) {
+            logd("signal error");
+            Mutex::Autolock l(mutexShutter);
+            condShutter.signal();
+            condJpeg.signal();
+        }
     }
     void postData(int32_t msgType, const sp<IMemory>& dataPtr, camera_frame_metadata_t *metadata) {
-        ALOGI("post data msg %d metadata = %p", msgType, metadata);
         if (msgType != CAMERA_MSG_COMPRESSED_IMAGE) {
             return;
         }
         ssize_t offset;
         size_t size;
         sp<IMemoryHeap> heap = dataPtr->getMemory(&offset, &size);
-        ALOGV("copyAndPost: off=%zd, size=%zu", offset, size);
+        logd("got jpeg data: off=%zd, size=%zu", offset, size);
         unsigned char *heapBase = (unsigned char*)heap->base();
         FILE* fp = fopen("/data/tmp.jpg", "wb");
         if (fp) {
@@ -64,10 +85,28 @@ class CamListener : public CameraListener {
             fp = NULL;
         }
 
+        {
+            Mutex::Autolock l(mutexJpeg);
+            condJpeg.signal();
+        }
     }
     void postDataTimestamp(nsecs_t timestamp, int32_t msgType, const sp<IMemory>& dataPtr) {
-        ALOGI("post data timestamp msg %d", msgType);
+        logi("post data timestamp msg %d", msgType);
     }
+
+    int waitForShutter() {
+        return condShutter.waitRelative(mutexShutter, s2ns(1));
+    }
+
+    int waitForJpeg() {
+        return condJpeg.waitRelative(mutexJpeg, s2ns(1));
+    }
+
+private:
+    Mutex     mutexShutter;
+    Mutex     mutexJpeg;
+    Condition condShutter;
+    Condition condJpeg;
 };
 
 
@@ -86,41 +125,45 @@ camera_context* createContext(int id, int preWidth, int preHeight, int picWidth,
     return ret;
 }
 void dumpContext(camera_context* c) {
-    ALOGI("======================================");
-    ALOGI("id               = %d", c->id);
-    ALOGI("frameRate        = %d", c->frameRate);
-    ALOGI("previewWidth     = %d", c->previewWidth);
-    ALOGI("previewHeight    = %d", c->previewHeight);
-    ALOGI("picWidth         = %d", c->picWidth);
-    ALOGI("picHeight        = %d", c->picHeight);
-    ALOGI("winWidth         = %d", c->winWidth);
-    ALOGI("winHeight        = %d", c->winHeight);
-    ALOGI("======================================");
+    logd("======================================");
+    logd("id               = %d", c->id);
+    logd("frameRate        = %d", c->frameRate);
+    logd("previewWidth     = %d", c->previewWidth);
+    logd("previewHeight    = %d", c->previewHeight);
+    logd("picWidth         = %d", c->picWidth);
+    logd("picHeight        = %d", c->picHeight);
+    logd("winWidth         = %d", c->winWidth);
+    logd("winHeight        = %d", c->winHeight);
+    logd("======================================");
 }
 
 int connect(camera_context* c) {
     c->cam = Camera::connect(c->id, String16("camera"), Camera::USE_CALLING_UID);
     if(c->cam == NULL) {
-        ALOGE("fail to connect camera %d", c->id);
+        loge("fail to connect camera %d", c->id);
         return -1;
     }
     if(c->cam->getStatus() != NO_ERROR) {
-        ALOGE("invalid status of connected camera %d"), c->id;
+        loge("invalid status of connected camera %d", c->id);
         return -1;
     }
-    ALOGI("####### camera %d connected #######", c->id);
+    logi("camera %d connected ", c->id);
     return 0;
 }
 
 void release(camera_context* c) {
     if(NULL == c || c->cam.get() == NULL) {
-        ALOGW("invalid parameters");
+        logw("invalid parameters");
         return;
     }
     c->cam->disconnect();
     c->cam.clear();
-    c->id = 0;
-    ALOGI("------- camera %d released -------", c->id);
+    //c->id = 0;
+    c->composer->dispose();
+    c->surface.clear();
+    c->surface_ctrl.clear();
+    c->composer.clear();
+    logi("camera %d released", c->id);
 }
 
 int createSurface(camera_context* c) {
@@ -141,12 +184,12 @@ int createSurface(camera_context* c) {
     ARect inOutDirtyBounds;
     c->surface->lock(&outBuffer, &inOutDirtyBounds);
     char* buffer = reinterpret_cast<char*>(outBuffer.bits);
-    ALOGI("buffer=%p stride=%d height=%d bytesPerPixe;=%d", buffer, outBuffer.stride, outBuffer.height, bytesPerPixel(outBuffer.format));
+    logi("buffer=%p stride=%d height=%d bytesPerPixe;=%d", buffer, outBuffer.stride, outBuffer.height, bytesPerPixel(outBuffer.format));
     memset(buffer, 0xAF, outBuffer.stride * bytesPerPixel(outBuffer.format) * outBuffer.height);
     c->surface->unlockAndPost();
 #endif
 
-    ALOGI("create surface successfully");
+    logi("create surface successfully");
     return 0;
 }
 
@@ -154,13 +197,13 @@ int runCamera(camera_context* c) {
 
     int ret = createSurface(c);
     if (ret != 0) {
-        ALOGE("fail to create surface");
+        loge("fail to create surface");
         return -1;
     }
 
     ret = connect(c);
     if (ret != 0) {
-        ALOGE("fail to connect camera device");
+        loge("fail to connect camera device");
         return -1;
     }
 
@@ -175,48 +218,73 @@ int runCamera(camera_context* c) {
     camPara.setPreviewFrameRate(c->frameRate);
     ret = cam->setParameters(camPara.flatten());
     if(ret != 0) {
-        ALOGE("fail to set parameters ret = %d", ret);
+        loge("fail to set parameters ret = %d", ret);
         return ret;
     }
 
     ret = cam->setPreviewTarget(c->surface->getIGraphicBufferProducer());
     if(ret != 0) {
-        ALOGE("fail to set preview target ret = %d", ret);
+        loge("fail to set preview target ret = %d", ret);
         return ret;
     }
 
     ret = cam->startPreview();
     if(ret != 0) {
-        ALOGE("fail to start preview ret = %d", ret);
+        loge("fail to start preview ret = %d", ret);
         return ret;
     }
     sleep(2);
     int msg = CAMERA_MSG_SHUTTER | CAMERA_MSG_COMPRESSED_IMAGE;
-    ALOGI("msg = %08X", msg);
     ret = cam->takePicture(msg);
     if(ret != 0) {
-        ALOGE("fail to take picture ret = %d", ret);
+        loge("fail to take picture ret = %d", ret);
     }
 
-    sleep(2);
+    ret = listener->waitForShutter();
+    if (ret != 0) {
+        loge("fail to wait for shutter %d", ret);
+        goto EXIT;
+    }
+    ret = listener->waitForJpeg();
+    if (ret != 0) {
+        loge("fail to wait for shutter %d", ret);
+        goto EXIT;
+    }
+    logi("camera %d preview and jpeg test OK", c->id);
+
+EXIT:
     cam->stopPreview();
-    return 0;
+    release(c);
+
+    return ret;
 }
+
 
 int main(int argc, const char *argv[]) {
 
-    camera_context* ctx = createContext(0, 1440, 1080, 4160, 3120, 30);
-    if(NULL == ctx) {
-        ALOGE("fail to create context");
+    std::string str = "hello, world";
+    logi("str=%s", str.c_str());
+    return 0;
+    camera_context* ctx0 = createContext(0, 1440, 1080, 4160, 3120, 30);
+    camera_context* ctx1 = createContext(1, 1440, 1080, 4160, 3120, 30);
+    camera_context* ctx2 = createContext(2, 1440, 1080, 3264, 2448, 30);
+    if(NULL == ctx0 || NULL == ctx2) {
+        loge("fail to create context");
         return -1;
     }
-    dumpContext(ctx);
 
-    runCamera(ctx);
+    camera_context* ctx[3];
+    ctx[0] = ctx0;
+    ctx[1] = ctx1;
+    ctx[2] = ctx2;
+    
+    for (unsigned int i = 0; i < sizeof(ctx)/sizeof(ctx[0]); i++) {
+        logi("run camera id %d\n", ctx[i]->id);
+        dumpContext(ctx[i]);
+        runCamera(ctx[i]);
+    }
 
-    release(ctx);
     return 0;
 }
-
 
 /********************************** END **********************************************/
