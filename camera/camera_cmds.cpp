@@ -55,10 +55,15 @@ public:
             //logd("signal shutter");
             Mutex::Autolock l(mutexShutter);
             condShutter.signal();
+        } else if(msgType == CAMERA_MSG_FOCUS) {
+            logd("get auto focus %d %d", ext1, ext2);
+            Mutex::Autolock l(mutexAF);
+            condAF.signal();
         } else if(msgType == CAMERA_MSG_ERROR) {
             //logd("signal error");
             Mutex::Autolock l(mutexShutter);
             condShutter.signal();
+            condAF.signal();
             condJpeg.signal();
         }
     }
@@ -91,14 +96,19 @@ public:
         return condShutter.waitRelative(mutexShutter, s2ns(1));
     }
 
+    int waitForAF() {
+        return condAF.waitRelative(mutexAF, s2ns(2));
+    }
     int waitForJpeg() {
         return condJpeg.waitRelative(mutexJpeg, s2ns(1));
     }
 
 private:
     Mutex     mutexShutter;
+    Mutex     mutexAF;
     Mutex     mutexJpeg;
     Condition condShutter;
+    Condition condAF;
     Condition condJpeg;
 };
 
@@ -227,7 +237,20 @@ int cmd_autofocus(stc_t* stc, std::vector<std::string>& arg) {
     camera_context* c = (camera_context*)stc->priv;
     CHECK_CTX(c);
 
-    return -1;
+    sp<Camera> cam = c->cam;
+    sp<CamListener> listener = c->listener.get();
+    int ret = cam->autoFocus();
+    if (ret != 0) {
+        loge("fail to do autofocus %d", ret);
+        return -1;
+    }
+    
+    ret = listener->waitForAF();
+    if (ret != 0) {
+        loge("fail to wait for autofocus %d", ret);
+        return -1;
+    }
+    return 0;
 }
 int cmd_zoom(stc_t* stc, std::vector<std::string>& arg) {
     camera_context* c = (camera_context*)stc->priv;
