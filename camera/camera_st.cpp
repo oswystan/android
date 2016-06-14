@@ -147,7 +147,7 @@ static int run_stc(stc_t* c) {
     for (unsigned i = 0; i < c->cmds.size(); i++) {
         command_t* cmd = c->cmds[i];
         cmd_handler_t* handler = get_handler(cmd->cmd.c_str());
-        logd("run %s=>%s", c->name.c_str(), cmd->cmd.c_str());
+        //logd("run %s=>%s", c->name.c_str(), cmd->cmd.c_str());
         if (NULL == handler) {
             loge("invalid cmd: %s=>%s", c->name.c_str(), cmd->cmd.c_str());
             return -1;
