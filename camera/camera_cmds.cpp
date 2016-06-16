@@ -49,6 +49,9 @@ using namespace android;
 class CamListener : public CameraListener {
 
 public:
+    CamListener() {
+        error = 0;
+    }
     void notify(int32_t msgType, int32_t ext1, int32_t ext2) {
         //logi("get msg %d, %d, %d", msgType, ext1, ext2);
         if(msgType == CAMERA_MSG_SHUTTER) {
@@ -56,11 +59,12 @@ public:
             Mutex::Autolock l(mutexShutter);
             condShutter.signal();
         } else if(msgType == CAMERA_MSG_FOCUS) {
-            logd("get auto focus %d %d", ext1, ext2);
+            //logd("get auto focus %d %d", ext1, ext2);
             Mutex::Autolock l(mutexAF);
             condAF.signal();
         } else if(msgType == CAMERA_MSG_ERROR) {
             //logd("signal error");
+            error = 1;
             Mutex::Autolock l(mutexShutter);
             condShutter.signal();
             condAF.signal();
@@ -92,15 +96,21 @@ public:
         logi("post data timestamp msg %d", msgType);
     }
 
+    // helper functions for callee.
     int waitForShutter() {
         return condShutter.waitRelative(mutexShutter, s2ns(1));
     }
-
     int waitForAF() {
         return condAF.waitRelative(mutexAF, s2ns(2));
     }
     int waitForJpeg() {
         return condJpeg.waitRelative(mutexJpeg, s2ns(1));
+    }
+    void resetError() {
+        error = 0;
+    }
+    int checkError() {
+        return error;
     }
 
 private:
@@ -110,6 +120,8 @@ private:
     Condition condShutter;
     Condition condAF;
     Condition condJpeg;
+
+    int       error;
 };
 
 struct camera_context {
@@ -245,17 +257,34 @@ int cmd_autofocus(stc_t* stc, std::vector<std::string>& arg) {
         return -1;
     }
     
+    listener->resetError();
     ret = listener->waitForAF();
     if (ret != 0) {
         loge("fail to wait for autofocus %d", ret);
         return -1;
     }
+    if (listener->checkError() != 0) {
+        loge("error occured when wait for AF");
+        return -1;
+    }
+
     return 0;
 }
 int cmd_zoom(stc_t* stc, std::vector<std::string>& arg) {
     camera_context* c = (camera_context*)stc->priv;
     CHECK_CTX(c);
-    return -1;
+    CHECK_ARG(arg, 1);
+
+    int zoom = atoi(arg[0].c_str());
+    sp<Camera> cam = c->cam;
+    CameraParameters param = cam->getParameters();
+    param.set(CameraParameters::KEY_ZOOM, zoom);
+    int ret = cam->setParameters(param.flatten());
+    if (ret != 0) {
+        loge("fail to set zoom %d", zoom);
+        return ret;
+    }
+    return 0;
 }
 int cmd_capture(stc_t* stc, std::vector<std::string>& arg) {
     camera_context* c = (camera_context*)stc->priv;
@@ -270,6 +299,7 @@ int cmd_capture(stc_t* stc, std::vector<std::string>& arg) {
         goto EXIT;
     }
 
+    listener->resetError();
     ret = listener->waitForShutter();
     if (ret != 0) {
         loge("fail to wait for shutter %d", ret);
@@ -279,6 +309,10 @@ int cmd_capture(stc_t* stc, std::vector<std::string>& arg) {
     if (ret != 0) {
         loge("fail to wait for shutter %d", ret);
         goto EXIT;
+    }
+    if (listener->checkError() != 0) {
+        loge("error occurred when wait for jpeg and shutter");
+        return -1;
     }
 
 EXIT:
