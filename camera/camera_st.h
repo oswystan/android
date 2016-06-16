@@ -40,7 +40,7 @@
 #define logd(fmt, ...) printf("[D/" LOG_TAG "]" fmt "\n", ##__VA_ARGS__)
 #define logi(fmt, ...) printf("[I/" LOG_TAG "]" fmt "\n", ##__VA_ARGS__)
 #define logw(fmt, ...) printf("[W/" LOG_TAG "]" fmt "\n", ##__VA_ARGS__)
-#define loge(fmt, ...) printf(RED "[E/" LOG_TAG "]" fmt "\n" NONE, ##__VA_ARGS__)
+#define loge(fmt, ...) printf("[" RED "E" NONE"/" LOG_TAG "]" fmt "\n", ##__VA_ARGS__)
 #define logfunc()      printf("[D/%s,%d]enter\n", __FUNCTION__, __LINE__)
 
 struct stc_t;
