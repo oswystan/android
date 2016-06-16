@@ -12,6 +12,8 @@
 
 #define LOG_TAG "CAMERA_TEST"
 #include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <cutils/memory.h>  
 #include <Camera.h>
 #include <CameraParameters.h>
@@ -80,11 +82,17 @@ public:
         sp<IMemoryHeap> heap = dataPtr->getMemory(&offset, &size);
         //logd("got jpeg data: off=%zd, size=%zu", offset, size);
         unsigned char *heapBase = (unsigned char*)heap->base();
-        FILE* fp = fopen("/data/tmp.jpg", "wb");
+        char fn[64];
+        mkdir("/data/camera_st", 0777);
+        sprintf(fn, "/data/camera_st/%s.jpg", jpegName.string());
+        FILE* fp = fopen(fn, "wb");
         if (fp) {
             fwrite(heapBase+offset, size, 1, fp);
             fclose(fp);
             fp = NULL;
+        } else {
+            loge("fail to open write jpeg file");
+            error = 1;
         }
 
         {
@@ -97,6 +105,9 @@ public:
     }
 
     // helper functions for callee.
+    void setJpegFileName(const char* name) {
+        jpegName = name;
+    }
     int waitForShutter() {
         return condShutter.waitRelative(mutexShutter, s2ns(1));
     }
@@ -122,6 +133,7 @@ private:
     Condition condJpeg;
 
     int       error;
+    String8   jpegName;
 };
 
 struct camera_context {
@@ -293,6 +305,7 @@ int cmd_capture(stc_t* stc, std::vector<std::string>& arg) {
     int msg = CAMERA_MSG_SHUTTER | CAMERA_MSG_COMPRESSED_IMAGE;
     sp<Camera> cam = c->cam;
     sp<CamListener> listener = c->listener.get();
+    listener->setJpegFileName(stc->name.c_str());
     int ret = cam->takePicture(msg);
     if(ret != 0) {
         loge("fail to take picture ret = %d", ret);
