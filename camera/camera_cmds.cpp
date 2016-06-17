@@ -289,7 +289,7 @@ int cmd_set_parameter(stc_t* stc, std::vector<std::string>& arg) {
         char val[64];
         memset(tag, 0x00, sizeof(tag));
         memset(val, 0x00, sizeof(val));
-        sscanf(arg[i].c_str(), "%[a-z]=%s", tag, val);
+        sscanf(arg[i].c_str(), "%[a-z-]=%s", tag, val);
         //logd("tags:[%s] value:[%s]", tag, val);
         camPara.set(tag, val);
     }
