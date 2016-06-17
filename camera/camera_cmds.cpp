@@ -47,12 +47,24 @@ using namespace android;
         }\
     }while(0)
 
+unsigned long get_cur_ms() {
+    struct timeval tv; 
+    unsigned long ret = 0;
+
+    if (0 == gettimeofday(&tv, NULL)) {
+        ret = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+    }   
+
+    return ret;
+}
+
 
 class CamListener : public CameraListener {
 
 public:
     CamListener() {
         error = 0;
+        resetRecordingStat();
     }
     void notify(int32_t msgType, int32_t ext1, int32_t ext2) {
         //logi("get msg %d, %d, %d", msgType, ext1, ext2);
@@ -101,10 +113,35 @@ public:
         }
     }
     void postDataTimestamp(nsecs_t timestamp, int32_t msgType, const sp<IMemory>& dataPtr) {
-        logi("post data timestamp msg %d", msgType);
+        unsigned long cur_ts = timestamp / 1000000;
+
+        frame_cnt++;
+        //logd("ts gap = %ld", cur_ts - pre_ts);
+        pre_ts = cur_ts;
+        
+        if (0 == first_ts) {
+            first_ts = get_cur_ms();
+        }
+        last_ts = get_cur_ms();
+
+        if(cam.get()) {
+            cam->releaseRecordingFrame(dataPtr);
+        }
     }
 
     // helper functions for callee.
+    void setCamera(Camera* c) {
+        cam = c;
+    }
+    void resetRecordingStat() {
+        pre_ts      = 0;
+        first_ts    = 0;
+        last_ts     = 0;
+        frame_cnt   = 0;
+    }
+    int getFrameRate() {
+        return (last_ts - first_ts) / frame_cnt;
+    }
     void setJpegFileName(const char* name) {
         jpegName = name;
     }
@@ -134,6 +171,13 @@ private:
 
     int       error;
     String8   jpegName;
+    sp<Camera> cam;
+
+    //recording released
+    unsigned long pre_ts;
+    unsigned long first_ts;
+    unsigned long last_ts;
+    unsigned long frame_cnt;
 };
 
 struct camera_context {
@@ -218,6 +262,7 @@ int cmd_config(stc_t* stc, std::vector<std::string>& arg) {
     sp<CamListener> listener = new CamListener();
     cam->setListener(listener);
     c->listener = listener;
+    listener->setCamera(cam.get());
 
     CameraParameters camPara;
     camPara.unflatten(cam->getParameters());
@@ -349,12 +394,29 @@ int cmd_release(stc_t* stc, std::vector<std::string>& arg) {
 int cmd_start_recording(stc_t* stc, std::vector<std::string>& arg) {
     camera_context* c = (camera_context*)stc->priv;
     CHECK_CTX(c);
-    return -1;
+
+    sp<Camera> cam = c->cam;
+    c->listener->resetRecordingStat();
+    int ret = cam->startRecording();
+    if (ret != 0) {
+        loge("fail to start recording");
+        return ret;
+    }
+    return 0;
 }
 int cmd_stop_recording(stc_t* stc, std::vector<std::string>& arg) {
     camera_context* c = (camera_context*)stc->priv;
     CHECK_CTX(c);
-    return -1;
+
+    sp<Camera> cam = c->cam;
+    if (cam.get()) {
+        cam->stopRecording();
+        //logd("frame rate = %d", c->listener->getFrameRate());
+        return 0;
+    } else {
+        loge("no camera found");
+        return -1;
+    }
 }
 
 cmd_handler_t g_handlers[] = {
