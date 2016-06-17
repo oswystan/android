@@ -277,6 +277,31 @@ int cmd_config(stc_t* stc, std::vector<std::string>& arg) {
 
     return 0;
 }
+int cmd_set_parameter(stc_t* stc, std::vector<std::string>& arg) {
+    camera_context* c = (camera_context*)stc->priv;
+    CHECK_CTX(c);
+
+    sp<Camera> cam = c->cam;
+    CameraParameters camPara;
+    camPara.unflatten(cam->getParameters());
+    for (unsigned int i = 0; i < arg.size(); i++) {
+        char tag[64];
+        char val[64];
+        memset(tag, 0x00, sizeof(tag));
+        memset(val, 0x00, sizeof(val));
+        sscanf(arg[i].c_str(), "%[a-z]=%s", tag, val);
+        //logd("tags:[%s] value:[%s]", tag, val);
+        camPara.set(tag, val);
+    }
+    int ret = cam->setParameters(camPara.flatten());
+    if (ret != 0) {
+        loge("fail to set parameters %s", camPara.flatten().string());
+        return ret;
+    }
+
+    return 0;
+}
+
 int cmd_preview(stc_t* stc, std::vector<std::string>& arg) {
     camera_context* c = (camera_context*)stc->priv;
     CHECK_CTX(c);
@@ -422,6 +447,7 @@ int cmd_stop_recording(stc_t* stc, std::vector<std::string>& arg) {
 cmd_handler_t g_handlers[] = {
     BUILD_CMD(connect),
     BUILD_CMD(config),
+    BUILD_CMD(set_parameter),
     BUILD_CMD(preview),
     BUILD_CMD(delay),
     BUILD_CMD(autofocus),
