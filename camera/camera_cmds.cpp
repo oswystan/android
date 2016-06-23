@@ -187,6 +187,8 @@ struct camera_context {
 
     int previewWidth;
     int previewHeight;
+    int videoWidth;
+    int videoHeight;
     int picWidth;
     int picHeight;
     int winWidth;
@@ -201,6 +203,13 @@ int cmd_connect(stc_t* stc, std::vector<std::string>& arg) {
     CHECK_ARG(arg, 1);
 
     camera_context* c = new camera_context;
+    c->previewWidth = 0;
+    c->previewHeight = 0;
+    c->videoWidth = 0;
+    c->videoHeight = 0;
+    c->picWidth = 0;
+    c->picHeight = 0;
+
     c->winWidth = 720;
     c->winHeight = 640;
     c->id = atoi(arg[0].c_str());
@@ -245,6 +254,8 @@ int cmd_config(stc_t* stc, std::vector<std::string>& arg) {
         sscanf(arg[i].c_str(), "%[a-z]=%[a-z|0-9]", tag, val);
         if (strcmp(tag, "preview") == 0) {
             sscanf(val, "%dx%d", &c->previewWidth, &c->previewHeight);
+        } else if (strcmp(tag, "video") == 0) {
+            sscanf(val, "%dx%d", &c->videoWidth, &c->videoHeight);
         } else if (strcmp(tag, "picture") == 0) {
             sscanf(val, "%dx%d", &c->picWidth, &c->picHeight);
         } else if (strcmp(tag, "fr") == 0) {
@@ -266,8 +277,15 @@ int cmd_config(stc_t* stc, std::vector<std::string>& arg) {
 
     CameraParameters camPara;
     camPara.unflatten(cam->getParameters());
-    camPara.setPreviewSize(c->previewWidth, c->previewHeight);
-    camPara.setPictureSize(c->picWidth, c->picHeight);
+    if (c->previewWidth != 0 && c->previewHeight != 0) {
+        camPara.setPreviewSize(c->previewWidth, c->previewHeight);
+    }
+    if (c->picWidth != 0 && c->picHeight) {
+        camPara.setPictureSize(c->picWidth, c->picHeight);
+    }
+    if (c->videoWidth != 0 && c->videoHeight != 0) {
+        camPara.setVideoSize(c->videoWidth, c->videoHeight);
+    }
     camPara.setPreviewFrameRate(c->frameRate);
     ret = cam->setParameters(camPara.flatten());
     if(ret != 0) {
