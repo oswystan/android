@@ -1,4 +1,7 @@
 #!/bin/bash
+##########################################################
+## a useful shell for getting remote files
+##########################################################
 
 base_dir="usr/project/le/turbo/src/bsp/out/target/product/le_turbo/"
 #base_dir="usr/project/le/turbo/src/smt/out/target/product/le_turbo/"
