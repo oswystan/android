@@ -408,7 +408,7 @@ int cmd_capture(stc_t* stc, std::vector<std::string>& arg) {
     }
     ret = listener->waitForJpeg();
     if (ret != 0) {
-        loge("fail to wait for shutter %d", ret);
+        loge("fail to wait for jpeg %d", ret);
         goto EXIT;
     }
     if (listener->checkError() != 0) {
