@@ -35,15 +35,24 @@ function logcat() {
 }
 
 function gpio() {
-    if [ $# -ne 3 ]; then
+    # show current status
+    if [ $# -eq 1 ]; then
+        adb shell "echo $1 >/sys/class/gpio/export"
+        adb shell "cat /sys/class/gpio/gpio$1/direction"
+        adb shell "cat /sys/class/gpio/gpio$1/value"
+        adb shell "echo $1 >/sys/class/gpio/unexport"
+    # set gpio configuration
+    elif [ $# -eq 3 ]; then
+        adb shell "echo $1 >/sys/class/gpio/export"
+        adb shell "echo $2 > /sys/class/gpio/gpio$1/direction"
+        adb shell "echo $3 > /sys/class/gpio/gpio$1/value"
+        adb shell "cat /sys/class/gpio/gpio$1/direction"
+        adb shell "cat /sys/class/gpio/gpio$1/value"
+        adb shell "echo $1 >/sys/class/gpio/unexport"
+    else
         echo "usage: gpio <gpio_num direction value>"
         return -1
     fi
-    adb shell "echo $1 >/sys/class/gpio/export"
-    adb shell "echo $2 > /sys/class/gpio/gpio$1/direction"
-    adb shell "echo $3 > /sys/class/gpio/gpio$1/value"
-    adb shell "cat /sys/class/gpio/gpio$1/direction"
-    adb shell "cat /sys/class/gpio/gpio$1/value"
 }
 
 ##################################################################
