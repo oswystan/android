@@ -140,7 +140,7 @@ public:
         frame_cnt   = 0;
     }
     int getFrameRate() {
-        return (last_ts - first_ts) / frame_cnt;
+        return frame_cnt * 1000 / (last_ts - first_ts);
     }
     void setJpegFileName(const char* name) {
         jpegName = name;
@@ -235,6 +235,13 @@ int cmd_connect(stc_t* stc, std::vector<std::string>& arg) {
         loge("invalid status of connected camera %d", c->id);
         return -1;
     }
+    sp<Camera> cam = c->cam;    
+    if (c->listener.get() == NULL) {
+        sp<CamListener> listener = new CamListener();
+        cam->setListener(listener);
+        c->listener = listener;
+        listener->setCamera(cam.get());
+    }
     stc->priv = c;
     return 0;
 }
@@ -270,11 +277,6 @@ int cmd_config(stc_t* stc, std::vector<std::string>& arg) {
     //c->picHeight     = 3120;
 
     sp<Camera> cam = c->cam;    
-    sp<CamListener> listener = new CamListener();
-    cam->setListener(listener);
-    c->listener = listener;
-    listener->setCamera(cam.get());
-
     CameraParameters camPara;
     camPara.unflatten(cam->getParameters());
     if (c->previewWidth != 0 && c->previewHeight != 0) {
@@ -454,7 +456,7 @@ int cmd_stop_recording(stc_t* stc, std::vector<std::string>& arg) {
     sp<Camera> cam = c->cam;
     if (cam.get()) {
         cam->stopRecording();
-        //logd("frame rate = %d", c->listener->getFrameRate());
+        logd("frame rate = %d", c->listener->getFrameRate());
         return 0;
     } else {
         loge("no camera found");
