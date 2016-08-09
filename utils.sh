@@ -54,5 +54,10 @@ function gpio() {
         return -1
     fi
 }
+function dbgfs() {
+    adb remount
+    adb shell mkdir /mnt/dbg
+    adb shell mount -t debugfs none /mnt/dbg
+}
 
 ##################################################################
