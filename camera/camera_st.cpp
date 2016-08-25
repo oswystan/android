@@ -147,7 +147,7 @@ static int run_stc(stc_t* c) {
     for (unsigned i = 0; i < c->cmds.size(); i++) {
         command_t* cmd = c->cmds[i];
         cmd_handler_t* handler = get_handler(cmd->cmd.c_str());
-        logd("run %s=>%s", c->name.c_str(), cmd->cmd.c_str());
+        //logd("run %s=>%s", c->name.c_str(), cmd->cmd.c_str());
         if (NULL == handler) {
             loge("invalid cmd: %s=>%s", c->name.c_str(), cmd->cmd.c_str());
             return -1;
@@ -165,9 +165,9 @@ static int run(st_file_t* st) {
     for (unsigned i = 0; i < st->stcs.size(); i++) {
         int ret = run_stc(st->stcs[i]);
         if (0 == ret) {
-            log("[SUCC]%s", st->stcs[i]->name.c_str());
+            log("[" GREEN "SUCC" NONE "]%s", st->stcs[i]->name.c_str());
         }else {
-            log("[FAIL]%s", st->stcs[i]->name.c_str());
+            log("[" RED   "FAIL" NONE "]%s", st->stcs[i]->name.c_str());
             return ret;
         }
     }
