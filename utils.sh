@@ -31,7 +31,10 @@ function kmedia() {
 }
 
 function logcat() {
-    adb logcat -c && cls ; adb logcat 
+    adb logcat -c && cls ; adb logcat | tee _`date '+%Y%m%d.%H%M%S'`.log
+}
+function logk() {
+    adb shell cat /proc/kmsg |tee k.log
 }
 
 function gpio() {
