@@ -25,7 +25,7 @@ function get_push_list() {
 function t() {
     touch $out_file
 }
-function push_last() {
+function last() {
     touch $out_file
     push_list=`cat $out_file`
     adb root
