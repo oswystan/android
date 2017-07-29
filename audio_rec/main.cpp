@@ -49,12 +49,13 @@ void data_callback(int event, void*, void *info) {
 }
 
 int main(int argc, const char *argv[]) {
-    int time = 10;
+    int time = 4;
     size_t min_cnt;
     if (argc >= 2) {
         time = atoi(argv[1]);
     }
     AudioRecord::getMinFrameCount(&min_cnt, cfg.sample_rate, cfg.fmt, cfg.channels);
+    logd("get min frame count: %d", min_cnt);
     cfg.frame_cnt = min_cnt*2;
 
     sp<AudioRecord> rec = new AudioRecord(cfg.src, cfg.sample_rate, cfg.fmt,
