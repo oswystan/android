@@ -62,9 +62,10 @@ void play_pcm(const char* fn) {
         log(".");
         t->write(buf, ret);
     }
+    log("\n");
+    logd("done.");
 
     t->flush();
-    logd("done.");
     t->stop();
     t.clear();
 
