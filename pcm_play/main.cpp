@@ -18,8 +18,11 @@
 
 using namespace android;
 
+#define log(fmt, ...) do{ printf(fmt, ##__VA_ARGS__); fflush(stdout); } while(0)
 #define logd(fmt, ...) printf("[D/" LOG_TAG "]" fmt "\n", ##__VA_ARGS__)
 #define loge(fmt, ...) printf("[E/" LOG_TAG "]" fmt "\n", ##__VA_ARGS__)
+
+static char buf[1024*88];
 
 typedef struct _audio_cfg {
     audio_stream_type_t     type;
@@ -36,8 +39,6 @@ audio_cfg cfg = {
 };
 
 void play_pcm(const char* fn) {
-
-    char buf[1024];
     int ret = 0;
 
     FILE* fp = fopen(fn, "r");
@@ -51,17 +52,19 @@ void play_pcm(const char* fn) {
         loge("low memory");
         goto OUT;
     }
+    logd("play ...");
     t->start();
     while(!feof(fp)) {
         ret = fread(buf, 1, sizeof(buf), fp);
         if (ret <= 0) {
             break;
         }
+        log(".");
         t->write(buf, ret);
     }
-    logd("done.");
 
     t->flush();
+    logd("done.");
     t->stop();
     t.clear();
 
