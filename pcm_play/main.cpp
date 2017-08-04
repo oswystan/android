@@ -67,7 +67,17 @@ int get_cfg_by_name(const char* fn, audio_cfg* c) {
             loge("invalid bits: %d", bits);
             return -1;
     }
-    c->channels = channels;
+    switch (channels) {
+        case 2:
+            c->channels = AUDIO_CHANNEL_OUT_STEREO;
+            break;
+        case 1:
+            c->channels = AUDIO_CHANNEL_OUT_MONO;
+            break;
+        default:
+            loge("invalid channels:%d", channels);
+            return -1;
+    }
     return 0;
 }
 
