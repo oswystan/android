@@ -12,6 +12,7 @@
 
 #define LOG_TAG "pcm_play"
 #include <stdio.h>
+#include <libgen.h>
 #include <errno.h>
 #include <string.h>
 #include <media/AudioTrack.h>
@@ -38,8 +39,43 @@ audio_cfg cfg = {
     .channels    = AUDIO_CHANNEL_OUT_STEREO
 };
 
+int get_cfg_by_name(const char* fn, audio_cfg* c) {
+    const char* ptr = basename(fn);
+    int ret = 0;
+    int sample_rate = 0;
+    int channels = 0;
+    int bits = 0;
+    ret = sscanf(ptr, "%d_%d_%d.pcm", &sample_rate, &channels, &bits);
+    if (ret != 3) {
+        loge("invalid file name format: %s(example: 16000_2_16.pcm)", ptr);
+        return -1;
+    }
+
+    logd("sample_rate: %d, channels: %d, bits: %d", sample_rate, channels, bits);
+    c->sample_rate = sample_rate;
+    switch (bits) {
+        case 16:
+            c->format = AUDIO_FORMAT_PCM_16_BIT;
+            break;
+        case 8:
+            c->format = AUDIO_FORMAT_PCM_8_BIT;
+            break;
+        case 32:
+            c->format = AUDIO_FORMAT_PCM_32_BIT;
+            break;
+        default:
+            loge("invalid bits: %d", bits);
+            return -1;
+    }
+    c->channels = channels;
+    return 0;
+}
+
 void play_pcm(const char* fn) {
     int ret = 0;
+    if (get_cfg_by_name(fn, &cfg) != 0) {
+        return;
+    }
 
     FILE* fp = fopen(fn, "r");
     if (!fp) {
