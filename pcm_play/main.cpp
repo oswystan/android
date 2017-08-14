@@ -121,7 +121,9 @@ OUT:
 
 int main(int argc, const char *argv[]) {
     if (argc != 2) {
-        loge("usage: %s <pcm_data_file>", argv[0]);
+        log("usage: %s <pcm_data_file>\n", argv[0]);
+        log("    - filename format: <sample_rate>_<channels>_<bits>.pcm\n");
+        log("    - like \"48000_2_16.pcm\"\n");
         return 1;
     }
     play_pcm(argv[1]);
