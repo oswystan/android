@@ -1,17 +1,26 @@
 QCOM camera releated information:
 
-> qcom camera use ubwc(compress video data) as default video format, so if software want to access yuv data, you should disable ubwc first by the following commands:
+> ### disable ubwc compression 
+
+qcom camera use ubwc(compress video data) as default video format, so if software want to access yuv data, you should disable ubwc first by the following commands:
 
 ```
 adb shell setprop persist.camera.preview.ubwc 0 
 adb shell setprop persist.camera.video.ubwc 0 
 ```
 
-> 
-> qcom yuv format limitations: `kernel/include/media/msm_media_info.h`
-> 
+> ### enable HAL1
 
 ```
+adb shell setprop persist.camera.HAL3.enabled 0
+```
+
+
+> ### qcom yuv format limitations
+
+```
+kernel/include/media/msm_media_info.h
+
  17     /* Venus NV12:
  18      * YUV 4:2:0 image with a plane of 8 bit Y samples followed
  19      * by an interleaved U/V plane containing 8 bit 2x2 subsampled
